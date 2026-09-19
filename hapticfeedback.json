@@ -1,0 +1,15 @@
+{
+  "hapticweb_base": "https://local.jmw.nz:41443",
+  "websocket_url": "wss://local.jmw.nz:41443/ws",
+  "use_websocket": true,
+  "min_strength": 18,
+  "cooldown_ms": 35,
+  "repeat_ms": 70,
+  "mapping": {
+    "light": "subtle_collision",
+    "medium": "knock",
+    "heavy": "sharp_collision",
+    "high_frequency": "sharp_state_change",
+    "mixed": "damp_collision"
+  }
+}

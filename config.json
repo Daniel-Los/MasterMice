@@ -1,0 +1,15 @@
+{
+  "pipe_name": "\\\\.\\pipe\\MasterMice",
+  "min_rumble": 0.08,
+  "min_interval_ms": 35,
+  "repeat_interval_ms": 70,
+  "intensity_change_threshold": 10,
+  "patterns": {
+    "weak": "Nudge",
+    "medium": "Light",
+    "strong": "Strong",
+    "very_strong": "Burst",
+    "high_frequency": "Tick",
+    "mixed": "Buzz"
+  }
+}

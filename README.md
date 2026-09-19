@@ -240,7 +240,7 @@ Standalone utilities in `tools/` for protocol debugging:
 
 | Tool | Purpose |
 |------|---------|
-| `battery_test.py` | Battery protocol debugger |
+| `battery_test.py` | Battery protocol debugger |C:\msys64\ucrt64\bin
 | `smartshift_test.py` | SmartShift protocol debugger |
 | `hid_debug.py` | HID interface and collection enumerator |
 | `haptic_hybrid.py` | Haptic motor test via dual HID handles |
