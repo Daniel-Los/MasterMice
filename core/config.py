@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import shutil
+import tempfile
 
 CONFIG_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "MasterMice")
 if sys.platform == "darwin":
@@ -178,6 +179,9 @@ DEFAULT_CONFIG = {
         "hscroll_threshold": 1,
         "invert_hscroll": False,  # swap horizontal scroll directions
         "invert_vscroll": False,  # swap vertical scroll directions
+        "dpi_cycle_start": 400,
+        "dpi_cycle_step": 400,
+        "dpi_cycle_max": 4000,
         "dpi": 1000,              # pointer speed / DPI setting
         "gesture_threshold": 50,
         "gesture_deadzone": 40,
@@ -247,8 +251,21 @@ def load_config():
 def save_config(cfg):
     """Persist config to disk."""
     ensure_config_dir()
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+    # Write beside the destination and replace it in one operation. This
+    # prevents a crash or concurrent reader from leaving a half-written file.
+    fd, temp_path = tempfile.mkstemp(prefix="config.", suffix=".tmp", dir=CONFIG_DIR)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, CONFIG_FILE)
+    except Exception:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
 
 
 def get_active_mappings(cfg):

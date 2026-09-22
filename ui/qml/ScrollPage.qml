@@ -154,6 +154,38 @@ Item {
                                 }
                             }
 
+                            Text {
+                                text: "DPI cycle: assign Cycle DPI to a button on the Mouse page."
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                color: scrollPage.theme.textSecondary
+                                font.pixelSize: 12
+                            }
+                            Flow {
+                                width: parent.width
+                                spacing: 12
+                                Repeater {
+                                    model: ["Start", "Increment", "Maximum"]
+                                    delegate: Column {
+                                        spacing: 4
+                                        Text { text: modelData; color: scrollPage.theme.textSecondary; font.pixelSize: 12 }
+                                        SpinBox {
+                                            from: index === 1 ? 50 : index === 2 && backend ? backend.dpiCycleStart : 200
+                                            to: backend ? backend.maxDpi : 4000
+                                            stepSize: 50
+                                            editable: true
+                                            value: !backend ? (index === 2 ? 4000 : 400) : index === 0 ? backend.dpiCycleStart : index === 1 ? backend.dpiCycleStep : backend.dpiCycleMax
+                                            onValueModified: {
+                                                if (backend) backend.setDpiCycle(
+                                                    index === 0 ? value : backend.dpiCycleStart,
+                                                    index === 1 ? value : backend.dpiCycleStep,
+                                                    index === 2 ? value : backend.dpiCycleMax)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             Timer { id: dpiDebounce; interval: 400; onTriggered: { backend.setDpi(Math.round(dpiSlider.value)); backend.statusMessage("Saved") } }
 
                             Flow {

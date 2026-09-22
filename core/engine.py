@@ -86,15 +86,37 @@ class Engine:
     def _make_handler(self, action_id):
         def handler(event):
             if self._enabled:
-                execute_action(action_id)
+                self._execute_action(action_id)
         return handler
 
     def _make_hscroll_handler(self, action_id):
         def handler(event):
             if not self._enabled:
                 return
-            execute_action(action_id)
+            self._execute_action(action_id)
         return handler
+
+    def _execute_action(self, action_id):
+        if action_id != "cycle_dpi":
+            execute_action(action_id)
+            return
+        # HID++ requests can take a moment; keep the mouse-hook dispatch
+        # thread responsive while the DPI command is sent.
+        threading.Thread(target=self._cycle_dpi, daemon=True,
+                         name="CycleDPI").start()
+
+    def _cycle_dpi(self):
+        with self._lock:
+            if not self.svc.connected:
+                print("[Engine] Cycle DPI ignored: service is not connected")
+                return
+            result = self.svc.request("cycle_dpi")
+            if not result:
+                return
+            value = result["dpi"]
+            self.cfg.setdefault("settings", {})["dpi"] = value
+            if self._dpi_read_cb:
+                self._dpi_read_cb(value)
 
     # ------------------------------------------------------------------
     # Per-app auto-switching
@@ -345,6 +367,12 @@ class Engine:
                         evt_data = evt.get("data", {})
                         if evt_name == "battery_update" and self._battery_read_cb:
                             self._on_battery_event(evt_data)
+                        elif evt_name == "dpi_changed":
+                            dpi = evt_data.get("dpi", 0)
+                            if dpi > 0:
+                                self.cfg.setdefault("settings", {})["dpi"] = dpi
+                                if self._dpi_read_cb:
+                                    self._dpi_read_cb(dpi)
                         elif evt_name == "haptic_panel_down":
                             self._on_svc_gesture_down(evt_data)
                         elif evt_name == "device_connected":

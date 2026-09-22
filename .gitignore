@@ -39,3 +39,4 @@ rename_to_mastermice.bat
 # Go build artifacts
 service/*.exe
 service/go.sum
+service/.gocache/

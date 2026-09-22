@@ -701,3 +701,6 @@ else:
             "category": "Other",
         },
     }
+
+# Device actions are handled by Engine.
+ACTIONS["cycle_dpi"] = {"label": "Cycle DPI", "keys": [], "category": "Mouse"}

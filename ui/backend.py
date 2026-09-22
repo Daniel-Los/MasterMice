@@ -224,6 +224,30 @@ class Backend(QObject):
         return self._cfg.get("settings", {}).get("dpi", 1000)
 
     @Property(int, notify=settingsChanged)
+    def dpiCycleStart(self):
+        return max(200, min(self.maxDpi, self._cfg.get("settings", {}).get("dpi_cycle_start", 400)))
+
+    @Property(int, notify=settingsChanged)
+    def dpiCycleStep(self):
+        return max(50, min(self.maxDpi, self._cfg.get("settings", {}).get("dpi_cycle_step", 400)))
+
+    @Property(int, notify=settingsChanged)
+    def dpiCycleMax(self):
+        return max(self.dpiCycleStart, min(self.maxDpi, self._cfg.get("settings", {}).get("dpi_cycle_max", 4000)))
+
+    @Slot(int, int, int)
+    def setDpiCycle(self, start, step, maximum):
+        start = max(200, min(self.maxDpi, round(start / 50) * 50))
+        step = max(50, min(self.maxDpi, round(step / 50) * 50))
+        maximum = max(start, min(self.maxDpi, round(maximum / 50) * 50))
+        self._cfg.setdefault("settings", {}).update(
+            dpi_cycle_start=start, dpi_cycle_step=step, dpi_cycle_max=maximum)
+        save_config(self._cfg)
+        if self._engine:
+            self._engine.reload_mappings()
+        self.settingsChanged.emit()
+
+    @Property(int, notify=settingsChanged)
     def maxDpi(self):
         """Max DPI for the connected device (4000 for MX3, 8000 for MX4)."""
         model = self._cfg.get("settings", {}).get("mouse_model", "")
