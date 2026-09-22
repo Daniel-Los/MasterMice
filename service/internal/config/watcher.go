@@ -46,7 +46,7 @@ func (w *Watcher) Start() error {
 	}
 
 	// Watch the directory (not the file) because editors often delete+recreate
-	dir := ConfigDir()
+	dir := filepath.Dir(path)
 	if err := watcher.Add(dir); err != nil {
 		watcher.Close()
 		return fmt.Errorf("watch %s: %w", dir, err)
@@ -55,17 +55,26 @@ func (w *Watcher) Start() error {
 	go func() {
 		defer watcher.Close()
 		var debounce *time.Timer
+		var reload <-chan time.Time
+		defer func() {
+			if debounce != nil {
+				debounce.Stop()
+			}
+		}()
 
 		for {
 			select {
 			case <-w.stop:
 				return
+			case <-reload:
+				reload = nil
+				w.reload()
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
 				}
 				// Only react to config.json writes
-				if event.Op&(fsnotify.Write|fsnotify.Create) == 0 {
+				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename|fsnotify.Remove) == 0 {
 					continue
 				}
 				if filepath.Base(event.Name) != "config.json" {
@@ -75,9 +84,8 @@ func (w *Watcher) Start() error {
 				if debounce != nil {
 					debounce.Stop()
 				}
-				debounce = time.AfterFunc(200*time.Millisecond, func() {
-					w.reload()
-				})
+				debounce = time.NewTimer(200 * time.Millisecond)
+				reload = debounce.C
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
@@ -98,6 +106,8 @@ func (w *Watcher) Stop() {
 
 // GetConfig returns the current config (thread-safe).
 func (w *Watcher) GetConfig() *Config {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return w.cfg
 }
 
@@ -108,10 +118,10 @@ func (w *Watcher) reload() {
 		return
 	}
 
-	w.cfg = newCfg
 	mlog.Println("[ConfigWatch] Config reloaded")
 
 	w.mu.Lock()
+	w.cfg = newCfg
 	cbs := make([]func(*Config), len(w.callbacks))
 	copy(cbs, w.callbacks)
 	w.mu.Unlock()

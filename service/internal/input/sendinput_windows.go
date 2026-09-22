@@ -9,50 +9,100 @@ import (
 	"time"
 	"unsafe"
 
+	mlog "github.com/olafnew/mastermice-svc/internal/logging"
 	"golang.org/x/sys/windows"
 )
 
 // cmdPipe is the connection to the service's command pipe for haptic triggers.
 var (
-	cmdPipe   net.Conn
-	cmdPipeMu sync.Mutex
+	cmdPipe             net.Conn
+	cmdPipeMu           sync.Mutex
+	cmdReader           *bufio.Reader
+	cmdPartial          []byte
+	cmdID               int
+	modeShiftConfigured bool
+	modeShiftEnabled    bool
 )
 
 // SetCmdPipe sets the command pipe connection used for haptic feedback.
 func SetCmdPipe(conn net.Conn) {
 	cmdPipeMu.Lock()
 	cmdPipe = conn
+	cmdReader = nil
+	cmdPartial = nil
+	modeShiftConfigured = false
+	if conn != nil {
+		cmdReader = bufio.NewReader(conn)
+	}
 	cmdPipeMu.Unlock()
+}
+
+// requestCommand requires cmdPipeMu. Retain buffered bytes and match IDs so a
+// delayed reply after a timeout cannot be mistaken for the next command.
+func requestCommand(command string, params map[string]interface{}) error {
+	if cmdPipe == nil {
+		return fmt.Errorf("command pipe unavailable")
+	}
+	cmdID++
+	id := cmdID
+	cmdPipe.SetDeadline(time.Now().Add(8 * time.Second))
+	defer cmdPipe.SetDeadline(time.Time{})
+	if err := json.NewEncoder(cmdPipe).Encode(map[string]interface{}{"id": id, "cmd": command, "params": params}); err != nil {
+		return err
+	}
+	for {
+		line, err := cmdReader.ReadBytes('\n')
+		cmdPartial = append(cmdPartial, line...)
+		if err != nil {
+			return err
+		}
+		var response struct {
+			ID    int    `json:"id"`
+			OK    bool   `json:"ok"`
+			Error string `json:"error"`
+		}
+		err = json.Unmarshal(cmdPartial, &response)
+		cmdPartial = nil
+		if err != nil {
+			return err
+		}
+		if response.ID != id {
+			continue
+		}
+		if !response.OK {
+			return fmt.Errorf("%s", response.Error)
+		}
+		return nil
+	}
+}
+
+// ConfigureModeShift keeps native wheel switching unless the profile maps it.
+func ConfigureModeShift(mappings map[string]string) {
+	enabled := mappings["mode_shift"] != "" && mappings["mode_shift"] != "none"
+	cmdPipeMu.Lock()
+	defer cmdPipeMu.Unlock()
+	if modeShiftConfigured && modeShiftEnabled == enabled {
+		return
+	}
+	if err := requestCommand("set_mode_shift_divert", map[string]interface{}{"enabled": enabled}); err != nil {
+		mlog.Printf("[Spin Mode] Configure failed: %v\n", err)
+		return
+	}
+	modeShiftConfigured, modeShiftEnabled = true, enabled
 }
 
 // triggerHaptic sends a haptic pulse via the service command pipe.
 // Non-blocking — silently fails if pipe is unavailable.
 func triggerHaptic(pulseType int) {
-	cmdPipeMu.Lock()
-	conn := cmdPipe
-	cmdPipeMu.Unlock()
-	if conn == nil {
-		return
-	}
-
-	req := map[string]interface{}{
-		"id":     999,
-		"cmd":    "haptic_trigger",
-		"params": map[string]interface{}{"pulse_type": pulseType},
-	}
-	data, _ := json.Marshal(req)
-	data = append(data, '\n')
-
 	go func() {
 		cmdPipeMu.Lock()
 		defer cmdPipeMu.Unlock()
 		if cmdPipe == nil {
 			return
 		}
-		cmdPipe.Write(data)
-		// Read response (discard)
-		reader := bufio.NewReader(cmdPipe)
-		reader.ReadBytes('\n')
+		if err := requestCommand("haptic_trigger", map[string]interface{}{"pulse_type": pulseType}); err != nil {
+			mlog.Printf("[Haptic] Request failed: %v\n", err)
+		}
 	}()
 }
 
@@ -86,6 +136,16 @@ type INPUT struct {
 // ExecuteAction looks up an action by ID and injects the key combo via SendInput.
 // Returns true if the action was found and executed, false for "none" or unknown.
 func ExecuteAction(actionID string) bool {
+	if actionID == "cycle_dpi" {
+		go func() {
+			cmdPipeMu.Lock()
+			defer cmdPipeMu.Unlock()
+			if err := requestCommand("cycle_dpi", nil); err != nil {
+				mlog.Printf("[DPI] Request failed: %v\n", err)
+			}
+		}()
+		return true
+	}
 	if actionID == "" || actionID == "none" {
 		return false
 	}

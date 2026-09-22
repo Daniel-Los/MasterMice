@@ -193,6 +193,7 @@ func main() {
 		len(cfg.Profiles), cfg.ActiveProfile)
 
 	// Start agent health/version IPC server (for version checking by the Python app)
+	var cfgMu sync.Mutex
 	go runAgentHealthServer()
 
 	// Connect to event pipe (push stream from service)
@@ -244,7 +245,9 @@ func main() {
 	go func() {
 		scanner := bufio.NewScanner(eventConn)
 		for scanner.Scan() {
+			cfgMu.Lock()
 			handleEvent(cfg, scanner.Text())
+			cfgMu.Unlock()
 		}
 		if err := scanner.Err(); err != nil {
 			mlog.Printf("[Agent] Event pipe error: %v\n", err)
@@ -256,9 +259,28 @@ func main() {
 	// Start WH_MOUSE_LL hook for OS-level buttons (xbutton, scroll)
 	hook := input.NewMouseHook()
 	hook.SetMappings(cfg.GetActiveMappings())
+	input.ConfigureModeShift(cfg.GetActiveMappings())
 	hook.InvertVScroll = cfg.Settings.InvertVScroll
 	hook.InvertHScroll = cfg.Settings.InvertHScroll
 	globalHookRef = hook
+
+	// The service does not emit config_changed. Watch the user's file here,
+	// where mappings are consumed, including atomic replacements by the UI.
+	watcher := config.NewWatcher(cfg)
+	watcher.OnChange(func(updated *config.Config) {
+		cfgMu.Lock()
+		defer cfgMu.Unlock()
+		updated.ActiveProfile = cfg.ActiveProfile
+		cfg = updated
+		hook.SetMappings(cfg.GetActiveMappings())
+		input.ConfigureModeShift(cfg.GetActiveMappings())
+		mlog.Printf("[Agent] Applied saved mappings: active=%s\n", cfg.ActiveProfile)
+	})
+	if err := watcher.Start(); err != nil {
+		mlog.Printf("[Agent] Config watcher failed: %v\n", err)
+	} else {
+		defer watcher.Stop()
+	}
 
 	go func() {
 		if err := hook.Start(); err != nil {
@@ -269,12 +291,15 @@ func main() {
 
 	// Start foreground app detection for profile switching
 	detector := appdetect.NewDetector(func(exe string) {
+		cfgMu.Lock()
+		defer cfgMu.Unlock()
 		// Resolve profile for this app
 		profileName := cfg.GetProfileForApp(exe)
 		if profileName != cfg.ActiveProfile {
 			cfg.ActiveProfile = profileName
 			newMappings := cfg.GetActiveMappings()
 			hook.SetMappings(newMappings)
+			input.ConfigureModeShift(newMappings)
 			mlog.Printf("[Agent] App: %s → profile: %s\n", exe, profileName)
 		}
 	})
@@ -410,6 +435,7 @@ func handleConfigChanged(cfg *config.Config, data map[string]interface{}) {
 	// Update hook mappings
 	if globalHookRef != nil {
 		globalHookRef.SetMappings(cfg.GetActiveMappings())
+		input.ConfigureModeShift(cfg.GetActiveMappings())
 		globalHookRef.InvertVScroll = cfg.Settings.InvertVScroll
 		globalHookRef.InvertHScroll = cfg.Settings.InvertHScroll
 	}

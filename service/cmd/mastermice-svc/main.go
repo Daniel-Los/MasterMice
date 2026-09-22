@@ -507,6 +507,8 @@ func deviceNotificationLoop(ctx context.Context, d *hidpp.Device,
 							buttonName = "haptic_panel"
 						case 0x00C3:
 							buttonName = "gesture"
+						case hidpp.CIDModeShift:
+							buttonName = "mode_shift"
 						}
 						if buttonName != "" {
 							evtData := map[string]interface{}{
@@ -522,7 +524,7 @@ func deviceNotificationLoop(ctx context.Context, d *hidpp.Device,
 					} else {
 						// CID=0x0000 → all buttons released
 						// Send "up" for all known diverted buttons
-						for _, btn := range []string{"gesture", "haptic_panel"} {
+						for _, btn := range []string{"gesture", "haptic_panel", "mode_shift"} {
 							evtData := map[string]interface{}{
 								"button": btn,
 								"state":  "up",

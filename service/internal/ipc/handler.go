@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/olafnew/mastermice-svc/internal/config"
 	"github.com/olafnew/mastermice-svc/internal/hidpp"
 )
 
@@ -138,6 +139,33 @@ func (h *Handler) Handle(req *Request) *Response {
 			data["buttons"] = d.Profile.Buttons
 		}
 		return okResp(req.ID, data)
+
+	case "cycle_dpi":
+		cfg, err := config.Load()
+		if err != nil {
+			return errResp(req.ID, err.Error())
+		}
+		current, err := h.Device.ReadDPI()
+		if err != nil {
+			return errResp(req.ID, err.Error())
+		}
+		limit := 4000
+		if h.Device.Profile != nil {
+			limit = h.Device.Profile.DPIMax
+		}
+		value := cfg.Settings.NextDPI(current, limit)
+		if err := h.Device.SetDPI(value); err != nil {
+			return errResp(req.ID, err.Error())
+		}
+		h.PushEvent("dpi_changed", map[string]interface{}{"dpi": h.Device.CachedDPI})
+		return okResp(req.ID, map[string]interface{}{"dpi": h.Device.CachedDPI})
+
+	case "set_mode_shift_divert":
+		enabled := ParamBool(req.Params, "enabled", false)
+		if err := h.Device.SetModeShiftDivert(enabled); err != nil {
+			return errResp(req.ID, err.Error())
+		}
+		return okResp(req.ID, map[string]interface{}{"enabled": enabled})
 
 	case "set_dpi":
 		val := ParamInt(req.Params, "value", 0)
