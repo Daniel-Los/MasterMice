@@ -41,6 +41,29 @@ Verbose sent-event logging:
 py mx4_rumble_bridge/main.py --verbose
 ```
 
+## Direct game rumble (XInput proxy)
+
+For games that call XInput directly, use the proxy mode. This captures
+`XInputSetState` in the game process, suppresses physical-controller vibration,
+and sends only the rumble values to MasterMice.
+
+Build the proxy once from PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File mx4_rumble_bridge/xinput_proxy/build.ps1
+```
+
+Start the MasterMice output listener:
+
+```powershell
+.\.venv\Scripts\python.exe mx4_rumble_bridge/main.py --xinput-proxy --verbose
+```
+
+Copy the proxy matching the DLL used by the game (`xinput1_4.dll`,
+`xinput1_3.dll`, or `xinput9_1_0.dll`) next to the game's `.exe`, then start
+the game. The proxy returns success to the game but does not vibrate a physical
+controller.
+
 Test every supported MasterMice waveform at 50% intensity:
 
 ```powershell

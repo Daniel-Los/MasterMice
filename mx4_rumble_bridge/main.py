@@ -21,6 +21,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=str, default="config.json", help="Path to config.json")
     parser.add_argument("--test-haptics", action="store_true", help="Test every MasterMice haptic pattern")
     parser.add_argument("--verbose", action="store_true", help="Print sent rumble events")
+    parser.add_argument(
+        "--xinput-proxy",
+        action="store_true",
+        help="Receive game rumble from the local xinput1_4.dll proxy instead of a virtual controller",
+    )
     return parser
 
 
@@ -44,6 +49,24 @@ def main() -> int:
         print(f"Details: {exc}", file=sys.stderr)
         return 2
     client = MasterMiceClient(cfg.pipe_name)
+
+    if args.xinput_proxy:
+        try:
+            from .xinput_listener import XInputRumbleListener
+        except ImportError:
+            from mx4_rumble_bridge.xinput_listener import XInputRumbleListener
+
+        listener = XInputRumbleListener(cfg, client, verbose=args.verbose)
+        try:
+            listener.start()
+            while True:
+                time.sleep(1.0)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            listener.stop()
+            client.close()
+        return 0
 
     if args.test_haptics:
         if not client.connect():
@@ -78,7 +101,6 @@ def main() -> int:
 
     try:
         while True:
-            import time
             time.sleep(1.0)
     except KeyboardInterrupt:
         pass
