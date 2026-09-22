@@ -37,6 +37,9 @@ type Settings struct {
 	InvertHScroll     bool    `json:"invert_hscroll"`
 	InvertVScroll     bool    `json:"invert_vscroll"`
 	DPI               int     `json:"dpi"`
+	DPICycleStart     int     `json:"dpi_cycle_start"`
+	DPICycleStep      int     `json:"dpi_cycle_step"`
+	DPICycleMax       int     `json:"dpi_cycle_max"`
 	GestureThreshold  float64 `json:"gesture_threshold"`
 	GestureDeadzone   float64 `json:"gesture_deadzone"`
 	GestureTimeoutMs  int     `json:"gesture_timeout_ms"`
@@ -83,6 +86,9 @@ func DefaultConfig() *Config {
 			StartMinimized:    true,
 			HScrollThreshold:  1,
 			DPI:               1000,
+			DPICycleStart:     400,
+			DPICycleStep:      400,
+			DPICycleMax:       4000,
 			GestureThreshold:  50,
 			GestureDeadzone:   40,
 			GestureTimeoutMs:  3000,

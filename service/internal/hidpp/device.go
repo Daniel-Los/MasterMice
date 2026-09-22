@@ -128,18 +128,22 @@ func (d *Device) DiscoverFeatures() error {
 	return nil
 }
 
-// DivertButtons configures REPROG_V4 to divert gesture and actions ring buttons.
-// This makes the device send button press/release events AND raw XY movement
-// data through the HID++ channel instead of standard mouse reports.
-//
-// Divert flags (from Wireshark captures of Logitech Options+):
-//   Bit 0: divert (redirect button events to HID++)
-//   Bit 1: dvalid (divert flag is valid)
-//   Bit 4: rawXY (divert raw mouse XY movement while button held)
-//   Bit 5: rawXY dvalid (rawXY flag is valid)
-//
-// 0x03 = divert button only (events but NO movement)
-// 0x33 = divert button + raw XY (events AND movement — needed for gesture swipes)
+// SetModeShiftDivert routes Spin Mode to the agent, or restores native behavior.
+func (d *Device) SetModeShiftDivert(enabled bool) error {
+	if d.ReprogIdx == 0 {
+		return fmt.Errorf("REPROG_V4 feature not available")
+	}
+	flags := byte(0x02) // valid, native behavior
+	if enabled {
+		flags = 0x03 // valid, divert button events
+	}
+	_, err := d.Transport.Request(d.ReprogIdx, 3,
+		[]byte{byte(CIDModeShift >> 8), byte(CIDModeShift & 0xFF), flags}, 2*time.Second)
+	return err
+}
+
+// DivertButtons configures gesture and haptic button events.
+// Flags 0x03 divert button presses; 0x33 also diverts raw XY for gestures.
 func (d *Device) DivertButtons() {
 	if d.ReprogIdx == 0 {
 		return

@@ -221,6 +221,8 @@ func deviceLoopWithReconnect(ctx context.Context, connectFn func() (*hidpp.Devic
 							buttonName = "haptic_panel"
 						case 0x00C3:
 							buttonName = "gesture"
+						case hidpp.CIDModeShift:
+							buttonName = "mode_shift"
 						}
 						if buttonName != "" {
 							evtData := map[string]interface{}{
@@ -234,7 +236,7 @@ func deviceLoopWithReconnect(ctx context.Context, connectFn func() (*hidpp.Devic
 							}
 						}
 					} else {
-						for _, btn := range []string{"gesture", "haptic_panel"} {
+						for _, btn := range []string{"gesture", "haptic_panel", "mode_shift"} {
 							evtData := map[string]interface{}{
 								"button": btn,
 								"state":  "up",

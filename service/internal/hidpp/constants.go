@@ -36,7 +36,8 @@ const (
 
 // Control IDs for button divert
 const (
-	CIDGesture    = 0x00C3 // Mouse Gesture Button
+	CIDGesture     = 0x00C3 // Mouse Gesture Button
+	CIDModeShift   = 0x00C4 // Smart Shift / wheel mode button
 	CIDActionsRing = 0x01A0 // Actions Ring / Haptic Sense Panel (MX4)
 )
 
